@@ -1,6 +1,8 @@
 from django.db import models
 from clients.models import Client
+from service.services.receivers import delete_cache_total_sum
 from service.services.tasks import set_comment, set_price
+from django.db.models.signals import post_delete
 
 
 class Service(models.Model):
@@ -51,3 +53,13 @@ class Subscription(models.Model):
     plan = models.ForeignKey(Plan, related_name='subscriptions', on_delete=models.PROTECT)
     price = models.PositiveIntegerField(default=0)
     comment = models.CharField(max_length=50, default="")
+
+    def save(self, *args, **kwargs):
+        creating = not bool(self.id)
+        result = super().save(*args, **kwargs)
+        if creating:
+            set_price.delay(self.id)
+        return result
+
+
+post_delete.connect(delete_cache_total_sum, sender=Subscription)
